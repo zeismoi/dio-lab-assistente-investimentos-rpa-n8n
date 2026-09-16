@@ -1,0 +1,174 @@
+{
+  "name": "Curso Dio",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "Clientes",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        176,
+        -192
+      ],
+      "id": "485afbcd-7756-4b93-891e-cf6c3c9f4243",
+      "name": "Webhook",
+      "webhookId": "b412f133-49a9-4239-8c5e-a4af7995d01f"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{json}}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1184,
+        -224
+      ],
+      "id": "8a37126a-351d-4b86-b366-3df661cb80ef",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "url": "https://digitalinnovationone.github.io/dio-lab-assistente-investimentos-rpa-n8n/data.csv",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        400,
+        32
+      ],
+      "id": "0271664f-2429-49b6-9051-5a55a0950458",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pega o CSV como texto vindo do HTTP Request\nconst csvRaw = $json.data ?? $json.body ?? $json;\nconst text = (typeof csvRaw === \"string\") ? csvRaw :\nJSON.stringify(csvRaw);\n\nconst lines = text.split(/\\r?\\n/).map(l => l.trim()).filter(Boolean);\nconst headers = lines[0].split(\",\").map(h => h.trim());\n\nconst investimentos = lines.slice(1).map(line => {\n  const cols = line.split(\",\").map(c => c.trim());\n  const obj = {};\n  headers.forEach((h, i) => obj[h] = cols[i] ?? \"\");\n\n  // normaliza mínimo para número\n  obj.minimo = Number(String(obj.minimo).replace(/[^\\d]/g, \"\")) || 0;\n\n  return obj;\n});\n\nreturn [{ json: { investimentos } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        32
+      ],
+      "id": "2053a9a1-ed16-4592-9e85-6eb9fdc6d30e",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        752,
+        -224
+      ],
+      "id": "d6414be9-ba95-4cff-b3c8-01dade348195",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ==============================================================================\n// Código do nó Code \"Mensagens\" (Modo: Run Once for All Items)\n// Desafio DIO: Assistente de Investimentos com RPA e n8n\n// ==============================================================================\n\n// 1. Catálogo oficial de investimentos do laboratório (docs/data.csv)\nconst catalogoInvestimentos = {\n  \"Conservador\": [\n    { produto: \"Tesouro Selic\", rentabilidade: \"13.0%\", minimo: \"R$ 500,00\", descricao: \"Segurança e liquidez diária com garantia do Tesouro Nacional.\" },\n    { produto: \"CDB Liquidez Diária\", rentabilidade: \"12.5%\", minimo: \"R$ 1.000,00\", descricao: \"Proteção do FGC e resgate imediato a qualquer momento.\" },\n    { produto: \"Poupança\", rentabilidade: \"6.2%\", minimo: \"R$ 100,00\", descricao: \"Isenção total de IR e simplicidade para reserva imediata.\" }\n  ],\n  \"Moderado\": [\n    { produto: \"CDB Prefixado\", rentabilidade: \"14.0%\", minimo: \"R$ 1.000,00\", descricao: \"Taxa e retorno garantidos até a data de vencimento.\" },\n    { produto: \"Tesouro IPCA+\", rentabilidade: \"15.0%\", minimo: \"R$ 1.000,00\", descricao: \"Rentabilidade real com proteção contra a inflação.\" },\n    { produto: \"Fundo Multimercado\", rentabilidade: \"16.0%\", minimo: \"R$ 5.000,00\", descricao: \"Diversificação inteligente entre moedas, juros e renda variável.\" }\n  ],\n  \"Arrojado\": [\n    { produto: \"Ações (Ibovespa)\", rentabilidade: \"Variável\", minimo: \"R$ 500,00\", descricao: \"Participação nas maiores empresas do país com foco em valorização e dividendos.\" },\n    { produto: \"FIIs (Fundos Imobiliários)\", rentabilidade: \"Variável\", minimo: \"R$ 100,00\", descricao: \"Recebimento de renda passiva mensal isenta de IR.\" },\n    { produto: \"Criptomoedas (Bitcoin/ETH)\", rentabilidade: \"Alta Volatilidade\", minimo: \"R$ 100,00\", descricao: \"Exposição a ativos digitais globais com alto potencial de valorização.\" }\n  ]\n};\n\n// 2. Extração resiliente dos dados de entrada\n// Suporta: payload do Webhook (body.clientes), array direto ou itens separados\nconst items = $input.all();\nlet listaClientes = [];\n\nfor (const item of items) {\n  const json = item.json;\n\n  if (json.body && Array.isArray(json.body.clientes)) {\n    listaClientes.push(...json.body.clientes);\n  } else if (Array.isArray(json.clientes)) {\n    listaClientes.push(...json.clientes);\n  } else if (json.body && typeof json.body === 'object' && json.body.nome) {\n    listaClientes.push(json.body);\n  } else if (json.nome) {\n    listaClientes.push(json);\n  }\n}\n\n// Fallback caso cheguem itens avulsos em outro formato\nif (listaClientes.length === 0 && items.length > 0) {\n  listaClientes = items.map(i => i.json);\n}\n\n// 3. Cruzamento de perfil e geração da mensagem para cada cliente\nconst resultados = listaClientes.map(cliente => {\n  const nome = cliente.nome || \"Cliente\";\n  const email = cliente.email || \"\";\n  const saldo = cliente.saldo || \"R$ 0,00\";\n  const perfilOriginal = (cliente.perfil || \"Conservador\").trim();\n  \n  // Padronizar capitalização (ex: \"conservador\" -> \"Conservador\")\n  const perfil = perfilOriginal.charAt(0).toUpperCase() + perfilOriginal.slice(1).toLowerCase();\n\n  // Buscar opções recomendadas para o perfil\n  const opcoes = catalogoInvestimentos[perfil] || catalogoInvestimentos[\"Conservador\"];\n\n  // Montar lista de produtos formatada\n  const textoOpcoes = opcoes.map((op, idx) => \n    `${idx + 1}. *${op.produto}* (Aplicação mínima: ${op.minimo})\\n   • Rentabilidade estimada: ${op.rentabilidade}\\n   • Detalhe: ${op.descricao}`\n  ).join(\"\\n\\n\");\n\n  // Mensagem personalizada completa\n  const mensagem = \n`Olá, *${nome}*! 👋\n\nIdentificamos que seu perfil de investidor é *${perfil}* e você possui um saldo disponível de *${saldo}*.\n\nCom base na sua estratégia, selecionamos as melhores opções de investimento disponíveis para você:\n\n${textoOpcoes}\n\n💡 *Dica:* Para começar a investir ou simular rendimentos futuros, responda a esta mensagem ou acesse seu aplicativo. Estamos à disposição para ajudar você a alcançar seus objetivos!\n\nAtenciosamente,\n*Assessoria de Investimentos*`;\n\n  return {\n    json: {\n      nome,\n      email,\n      saldo,\n      perfil,\n      mensagem,\n      produtosSugeridos: opcoes,\n      criadoEm: new Date().toISOString()\n    }\n  };\n});\n\nreturn resultados;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        -224
+      ],
+      "id": "857a29fb-7fba-405f-8e21-cb062f667cd6",
+      "name": "Mensagens"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to Webhook": {
+      "main": [
+        []
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Mensagens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagens": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "37276afc-3ef1-4806-98ae-3be14b3eb26e",
+  "meta": {
+    "instanceId": "a2b71cb8b51a5460ccdd1c1f6902729e07fccaaec8e80b848bf7a2cb88fc8980"
+  },
+  "nodeGroups": [],
+  "id": "V8A2BbKiTjIEi5LH",
+  "tags": []
+}
